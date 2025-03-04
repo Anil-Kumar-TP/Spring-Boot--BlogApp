@@ -11,6 +11,12 @@ import java.util.UUID;
 @Repository
 public interface CategoryRepository extends JpaRepository<Category, UUID> {
 
+    //fetches all categories with their associated posts.
+    // when fetching categories,posts are also fetched
     @Query("SELECT c FROM Category c LEFT JOIN FETCH c.posts")
-    List<Category> findAllWithPostCount(); //fetches all categories with their associated posts.
-}                                           // when fetching categories,posts are also fetched
+    List<Category> findAllWithPostCount();
+
+    boolean existsByNameIgnoreCase(String name);
+}
+
+

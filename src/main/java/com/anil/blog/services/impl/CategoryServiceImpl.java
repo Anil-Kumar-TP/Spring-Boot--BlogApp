@@ -2,9 +2,11 @@ package com.anil.blog.services.impl;
 
 import com.anil.blog.domain.entities.Category;
 import com.anil.blog.dtos.CategoryDto;
+import com.anil.blog.dtos.CreateCategoryRequest;
 import com.anil.blog.mappers.CategoryMapper;
 import com.anil.blog.repositories.CategoryRepository;
 import com.anil.blog.services.CategoryService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -23,5 +25,17 @@ public class CategoryServiceImpl implements CategoryService {
                 .stream()
                 .map(categoryMapper::toDto)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public CategoryDto createCategory(CreateCategoryRequest createCategoryRequest) {
+        String categoryName = createCategoryRequest.getName();
+        if (categoryRepository.existsByNameIgnoreCase(categoryName)){
+            throw new IllegalArgumentException("Category already exist with name " + categoryName);
+        }
+        Category category = categoryMapper.toEntity(createCategoryRequest);
+        Category savedCategory = categoryRepository.save(category);
+        return categoryMapper.toDto(savedCategory);
     }
 }
