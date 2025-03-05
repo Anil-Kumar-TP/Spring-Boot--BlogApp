@@ -27,7 +27,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (token != null){
                 UserDetails userDetails = authenticationService.validateToken(token);
 
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails,null,userDetails.getAuthorities());
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails,null,userDetails.getAuthorities()); //null bcs after initial auth we do not need password,we rely on token. so set it as null.
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 

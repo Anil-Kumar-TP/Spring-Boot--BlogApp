@@ -35,6 +35,9 @@ public class User {
     @OneToMany(mappedBy = "author",cascade = CascadeType.ALL,orphanRemoval = true)
     private List<Post> posts = new ArrayList<>();
 
+    @Column(nullable = false)
+    private boolean emailVerified = false;
+
     @CreationTimestamp
     @Column(nullable = false,updatable = false)
     private LocalDateTime createdAt;

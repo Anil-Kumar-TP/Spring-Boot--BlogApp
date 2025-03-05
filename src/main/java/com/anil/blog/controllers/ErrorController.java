@@ -1,6 +1,7 @@
 package com.anil.blog.controllers;
 
 import com.anil.blog.dtos.ApiErrorResponse;
+import com.anil.blog.exceptions.EmailNotVerifiedException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -53,5 +54,15 @@ public class ErrorController {
                 message("Incorrect username or password").
                 build();
         return new ResponseEntity<>(error,HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ApiErrorResponse> handleEmailNotVerifiedException(EmailNotVerifiedException e) {
+        log.error("Email not verified error", e);
+        ApiErrorResponse error = ApiErrorResponse.builder()
+                .status(HttpStatus.BAD_REQUEST.value())
+                .message(e.getMessage())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 }
