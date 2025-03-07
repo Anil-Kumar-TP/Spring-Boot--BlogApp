@@ -2,6 +2,7 @@ package com.anil.blog.domain.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -27,6 +28,10 @@ public class VerificationToken {
 
     @Column(nullable = false)
     private LocalDateTime expiryDate;
+
+    @CreationTimestamp
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
     public VerificationToken(User user, String token) {
         this.user = user;

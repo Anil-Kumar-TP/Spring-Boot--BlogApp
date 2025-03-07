@@ -2,6 +2,7 @@ package com.anil.blog.controllers;
 
 import com.anil.blog.dtos.ApiErrorResponse;
 import com.anil.blog.exceptions.EmailNotVerifiedException;
+import com.anil.blog.exceptions.VerificationResendCooldownException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,7 +32,7 @@ public class ErrorController {
         log.error("Illegal Argument error",e);
         ApiErrorResponse error = ApiErrorResponse.builder().
                 status(HttpStatus.BAD_REQUEST.value()).
-                message("Invalid input provided.Check your request and try again.").
+                message("Invalid verification token").
                 build();
         return new ResponseEntity<>(error,HttpStatus.BAD_REQUEST);
     }
@@ -64,5 +65,15 @@ public class ErrorController {
                 .message(e.getMessage())
                 .build();
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(VerificationResendCooldownException.class)
+    public ResponseEntity<ApiErrorResponse> handleVerificationResendCooldownException(VerificationResendCooldownException e) {
+        log.error("Resend cooldown error", e);
+        ApiErrorResponse error = ApiErrorResponse.builder()
+                .status(HttpStatus.TOO_MANY_REQUESTS.value()) // 429
+                .message(e.getMessage())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.TOO_MANY_REQUESTS);
     }
 }

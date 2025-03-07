@@ -5,6 +5,7 @@ import com.anil.blog.domain.entities.VerificationToken;
 import com.anil.blog.dtos.AuthResponse;
 import com.anil.blog.dtos.SignupRequest;
 import com.anil.blog.exceptions.EmailNotVerifiedException;
+import com.anil.blog.exceptions.VerificationResendCooldownException;
 import com.anil.blog.repositories.UserRepository;
 import com.anil.blog.repositories.VerificationTokenRepository;
 import com.anil.blog.security.BlogUserDetails;
@@ -49,6 +50,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     private final Long jwtExpiryMs = 86400000L;
     private final VerificationTokenRepository verificationTokenRepository;
+
+    private static final int RESEND_COOLDOWN_MINUTES = 2; // 2-minute cooldown for resend mail
 
     @Override
     public UserDetails authenticate(String email, String password) {
@@ -126,6 +129,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         return "Email verified successfully. You can now log in.";
     }
 
+
     private void sendVerificationEmail(String email, String token) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(email);
@@ -134,6 +138,34 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                                 baseUrl + "/api/v1/auth/verify?token=" + token);
         mailSender.send(message);
 
+    }
+
+    @Override
+    public String resendVerificationEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        if (user.isEmailVerified()) {
+            throw new IllegalStateException("Email already verified");
+        }
+
+        // Check for existing token and enforce cooldown
+        Optional<VerificationToken> existingToken = verificationTokenRepository.findByUser(user);
+        if (existingToken.isPresent()) {
+            LocalDateTime lastSent = existingToken.get().getCreatedAt();
+            LocalDateTime now = LocalDateTime.now();
+            if (lastSent.plusMinutes(RESEND_COOLDOWN_MINUTES).isAfter(now)) {
+                long secondsLeft = java.time.Duration.between(now, lastSent.plusMinutes(RESEND_COOLDOWN_MINUTES)).getSeconds();
+                throw new VerificationResendCooldownException("Please wait " + secondsLeft + " seconds before requesting a new verification email.");
+            }
+            verificationTokenRepository.delete(existingToken.get()); // Delete old token
+        }
+
+        // Generate and send new token
+        String newToken = UUID.randomUUID().toString();
+        VerificationToken tokenEntity = new VerificationToken(user, newToken);
+        verificationTokenRepository.save(tokenEntity);
+        sendVerificationEmail(user.getEmail(), newToken);
+        return "Verification email resent successfully.";
     }
 
     private String extractUsername(String token){

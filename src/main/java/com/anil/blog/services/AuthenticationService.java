@@ -16,4 +16,6 @@ public interface AuthenticationService {
 
     String verifyEmail(String token);
 
+    String resendVerificationEmail(String email);
+
 }
