@@ -1,6 +1,7 @@
 package com.anil.blog.security;
 
 import com.anil.blog.services.AuthenticationService;
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,25 +23,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        try{
-            String token = extractToken(request);
-            if (token != null){
-                UserDetails userDetails = authenticationService.validateToken(token);
-
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails,null,userDetails.getAuthorities()); //null bcs after initial auth we do not need password,we rely on token. so set it as null.
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-
-                if (userDetails instanceof BlogUserDetails){
-                    request.setAttribute("userId",((BlogUserDetails) userDetails).getId());
-                }//using this bcs we might further need logged-in user id down the line, so doing it here.
-            }   //such as Authentication principal in every method. this avoids it.
-        }catch (Exception e){
-            //Do not throw exception,just don't authenticate the user.
-            log.warn("Received invalid auth token");
+        String token = extractToken(request);
+        if (token == null) {
+            filterChain.doFilter(request, response);
+            return;
         }
-
-        filterChain.doFilter(request,response);
+        try {
+            UserDetails userDetails = authenticationService.validateToken(token);
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                    userDetails, null, userDetails.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            if (userDetails instanceof BlogUserDetails) {
+                request.setAttribute("userId", ((BlogUserDetails) userDetails).getId());
+            }
+        } catch (ExpiredJwtException e) {
+            log.warn("Token expired: {}", token);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("Token has expired");
+            return; // Stop the chain
+        }catch (Exception e) {
+            log.warn("Invalid token: {}", token, e);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("Invalid token");
+            return; // Stop the chain
+        }
+        filterChain.doFilter(request, response);
     }
 
     private String extractToken(HttpServletRequest request){

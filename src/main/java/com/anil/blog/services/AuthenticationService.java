@@ -18,4 +18,7 @@ public interface AuthenticationService {
 
     String resendVerificationEmail(String email);
 
+    AuthResponse refreshToken(String refreshToken);       // For token refresh
+    AuthResponse generateTokens(UserDetails userDetails);
+
 }
