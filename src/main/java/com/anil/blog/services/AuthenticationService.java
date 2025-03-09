@@ -21,4 +21,8 @@ public interface AuthenticationService {
     AuthResponse refreshToken(String refreshToken);       // For token refresh
     AuthResponse generateTokens(UserDetails userDetails);
 
+    void logout(String refreshToken);
+
+    void revokeToken(String token);
+
 }

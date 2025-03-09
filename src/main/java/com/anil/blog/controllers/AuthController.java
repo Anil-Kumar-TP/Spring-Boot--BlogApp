@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashSet;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -42,5 +43,12 @@ public class AuthController {
     @PostMapping("/resend-verification")
     public ResponseEntity<String> resendVerification(@RequestBody ResendVerificationRequest request) {
         return ResponseEntity.ok(authenticationService.resendVerificationEmail(request.getEmail()));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, String>> logout(@RequestBody LogoutRequest request) {
+        authenticationService.logout(request.getRefreshToken());
+        authenticationService.revokeToken(request.getToken()); // Use token
+        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
 }

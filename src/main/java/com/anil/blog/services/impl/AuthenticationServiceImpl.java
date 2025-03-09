@@ -1,6 +1,7 @@
 package com.anil.blog.services.impl;
 
 import com.anil.blog.domain.entities.RefreshToken;
+import com.anil.blog.domain.entities.RevokedToken;
 import com.anil.blog.domain.entities.User;
 import com.anil.blog.domain.entities.VerificationToken;
 import com.anil.blog.dtos.AuthResponse;
@@ -8,6 +9,7 @@ import com.anil.blog.dtos.SignupRequest;
 import com.anil.blog.exceptions.EmailNotVerifiedException;
 import com.anil.blog.exceptions.VerificationResendCooldownException;
 import com.anil.blog.repositories.RefreshTokenRepository;
+import com.anil.blog.repositories.RevokedTokenRepository;
 import com.anil.blog.repositories.UserRepository;
 import com.anil.blog.repositories.VerificationTokenRepository;
 import com.anil.blog.security.BlogUserDetails;
@@ -57,6 +59,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     private static final int RESEND_COOLDOWN_MINUTES = 2; // 2-minute cooldown for resend mail
     private final RefreshTokenRepository refreshTokenRepository;
+    private final RevokedTokenRepository revokedTokenRepository;
 
     @Override
     public UserDetails authenticate(String email, String password) {
@@ -82,7 +85,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     @Override
     public UserDetails validateToken(String token) {
-        Claims claims = extractClaims(token); // Updated method
+        if (revokedTokenRepository.findByToken(token).isPresent()) {
+            throw new IllegalArgumentException("Token has been revoked");
+        }
+        Claims claims = extractClaims(token);
         String username = claims.getSubject();
         return userDetailsService.loadUserByUsername(username);
     }
@@ -128,6 +134,29 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .token("Verification required") // Placeholder, not a real token
                 .expiresIn(0)
                 .build();
+    }
+
+    @Override
+    public void logout(String refreshToken) {
+        refreshTokenRepository.findByToken(refreshToken)
+                .ifPresent(refreshTokenRepository::delete);
+    }
+
+    @Override
+    public void revokeToken(String token) {
+        if (token != null && revokedTokenRepository.findByToken(token).isEmpty()) {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            RevokedToken revokedToken = RevokedToken.builder()
+                    .token(token)
+                    .revokedAt(LocalDateTime.now())
+                    .expiryDate(claims.getExpiration().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
+                    .build();
+            revokedTokenRepository.save(revokedToken);
+        }
     }
 
     @Override
