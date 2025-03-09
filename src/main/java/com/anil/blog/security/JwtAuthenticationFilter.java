@@ -41,8 +41,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Token has expired");
             return; // Stop the chain
         }catch (IllegalArgumentException e) {
-            log.warn("Revoked token: {}", token);
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Token has been revoked");
+            log.warn("Token error: {}", token, e);
+            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, e.getMessage()); // "Token has been revoked" or "Token is not active"
             return;
         }catch (Exception e) {
             log.warn("Invalid token: {}", token, e);

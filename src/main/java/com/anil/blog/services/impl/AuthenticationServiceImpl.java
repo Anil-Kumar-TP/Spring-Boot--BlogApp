@@ -1,17 +1,11 @@
 package com.anil.blog.services.impl;
 
-import com.anil.blog.domain.entities.RefreshToken;
-import com.anil.blog.domain.entities.RevokedToken;
-import com.anil.blog.domain.entities.User;
-import com.anil.blog.domain.entities.VerificationToken;
+import com.anil.blog.domain.entities.*;
 import com.anil.blog.dtos.AuthResponse;
 import com.anil.blog.dtos.SignupRequest;
 import com.anil.blog.exceptions.EmailNotVerifiedException;
 import com.anil.blog.exceptions.VerificationResendCooldownException;
-import com.anil.blog.repositories.RefreshTokenRepository;
-import com.anil.blog.repositories.RevokedTokenRepository;
-import com.anil.blog.repositories.UserRepository;
-import com.anil.blog.repositories.VerificationTokenRepository;
+import com.anil.blog.repositories.*;
 import com.anil.blog.security.BlogUserDetails;
 import com.anil.blog.services.AuthenticationService;
 import io.jsonwebtoken.Claims;
@@ -19,6 +13,7 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
@@ -60,6 +55,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private static final int RESEND_COOLDOWN_MINUTES = 2; // 2-minute cooldown for resend mail
     private final RefreshTokenRepository refreshTokenRepository;
     private final RevokedTokenRepository revokedTokenRepository;
+    private final ActiveTokenRepository activeTokenRepository;
 
     @Override
     public UserDetails authenticate(String email, String password) {
@@ -85,8 +81,14 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     @Override
     public UserDetails validateToken(String token) {
+        // Check if revoked
         if (revokedTokenRepository.findByToken(token).isPresent()) {
             throw new IllegalArgumentException("Token has been revoked");
+        }
+        // Check if active
+        Optional<ActiveToken> activeToken = activeTokenRepository.findByToken(token);
+        if (activeToken.isEmpty()) {
+            throw new IllegalArgumentException("Token is not active");
         }
         Claims claims = extractClaims(token);
         String username = claims.getSubject();
@@ -137,11 +139,14 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     }
 
     @Override
+    @Transactional
     public void logout(String refreshToken) {
         refreshTokenRepository.findByToken(refreshToken)
-                .ifPresent(refreshTokenRepository::delete);
+                .ifPresent(tokenEntity -> {
+                    User user = tokenEntity.getUser();
+                    revokeAllUserTokens(user);
+                });
     }
-
     @Override
     public void revokeToken(String token) {
         if (token != null && revokedTokenRepository.findByToken(token).isEmpty()) {
@@ -156,6 +161,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                     .expiryDate(claims.getExpiration().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
                     .build();
             revokedTokenRepository.save(revokedToken);
+            activeTokenRepository.findByToken(token).ifPresent(activeTokenRepository::delete);
         }
     }
 
@@ -176,6 +182,23 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         return "Email verified successfully. You can now log in.";
     }
 
+    private void revokeAllUserTokens(User user) {
+        // Revoke refresh token
+        Optional<RefreshToken> refreshTokenOpt = refreshTokenRepository.findByUser(user);
+        refreshTokenOpt.ifPresent(refreshTokenRepository::delete);
+
+        // Revoke active JWT
+        Optional<ActiveToken> activeTokenOpt = activeTokenRepository.findByUser(user);
+        activeTokenOpt.ifPresent(activeToken -> {
+            RevokedToken revokedToken = RevokedToken.builder()
+                    .token(activeToken.getToken())
+                    .revokedAt(LocalDateTime.now())
+                    .expiryDate(activeToken.getExpiryDate())
+                    .build();
+            revokedTokenRepository.save(revokedToken);
+            activeTokenRepository.delete(activeToken);
+        });
+    }
 
     private void sendVerificationEmail(String email, String token) {
         SimpleMailMessage message = new SimpleMailMessage();
@@ -229,17 +252,33 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
+    @Override
+    @Transactional
     public AuthResponse generateTokens(UserDetails userDetails) {
-        String accessToken = generateToken(userDetails);
         User user = ((BlogUserDetails) userDetails).getUser();
+
+        // Revoke all existing tokens for this user
+        revokeAllUserTokens(user);
+
+        String token = generateToken(userDetails);
         String refreshToken = generateRefreshToken(user);
+
+        // Store new active JWT
+        ActiveToken activeToken = ActiveToken.builder()
+                .token(token)
+                .user(user)
+                .expiryDate(LocalDateTime.now().plusSeconds(jwtExpiryMs / 1000))
+                .build();
+        activeTokenRepository.save(activeToken);
+
         return AuthResponse.builder()
-                .token(accessToken)
+                .token(token)
                 .refreshToken(refreshToken)
                 .expiresIn(jwtExpiryMs / 1000)
                 .build();
     }
 
+    @Override
     public AuthResponse refreshToken(String refreshToken) {
         RefreshToken tokenEntity = refreshTokenRepository.findByToken(refreshToken)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid refresh token"));
@@ -252,16 +291,27 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
         String newAccessToken = generateToken(userDetails);
 
+        // Revoke old active token
+        activeTokenRepository.findByUser(user).ifPresent(activeTokenRepository::delete);
+
+        // Store new active token
+        ActiveToken activeToken = ActiveToken.builder()
+                .token(newAccessToken)
+                .user(user)
+                .expiryDate(LocalDateTime.now().plusSeconds(jwtExpiryMs / 1000))
+                .build();
+        activeTokenRepository.save(activeToken);
+
         return AuthResponse.builder()
                 .token(newAccessToken)
-                .refreshToken(refreshToken) // Reuse existing
+                .refreshToken(refreshToken)
                 .expiresIn(jwtExpiryMs / 1000)
                 .build();
     }
 
     private String generateRefreshToken(User user) {
         Optional<RefreshToken> existingToken = refreshTokenRepository.findByUser(user);
-        existingToken.ifPresent(refreshTokenRepository::delete); // Revoke old token
+        existingToken.ifPresent(refreshTokenRepository::delete);
 
         String token = UUID.randomUUID().toString();
         RefreshToken refreshToken = RefreshToken.builder()
