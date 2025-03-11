@@ -1,5 +1,6 @@
 package com.anil.blog.services.impl;
 
+import com.anil.blog.domain.entities.Category;
 import com.anil.blog.domain.entities.Tag;
 import com.anil.blog.dtos.CreateTagsRequest;
 import com.anil.blog.dtos.TagDto;
@@ -11,7 +12,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -52,5 +55,16 @@ public class TagServiceImpl implements TagService {
         return existingTags.stream()
                 .map(tagMapper::toTagDto)
                 .toList();
+    }
+
+    @Override
+    public void deleteTag(UUID id) {
+        Optional<Tag> tag = tagRepository.findById(id);
+        if (tag.isPresent()){
+            if (tag.get().getPosts().size() > 0){ //has post in the tag.cant delete.
+                throw new IllegalStateException("Tag has posts associated with it.");
+            }
+            tagRepository.deleteById(id);
+        }
     }
 }
