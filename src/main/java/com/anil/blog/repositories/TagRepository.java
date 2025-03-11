@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -16,4 +17,6 @@ public interface TagRepository extends JpaRepository<Tag, UUID> {
     //these are then taken care of when we convert it to dtos.
     @Query("SELECT t FROM Tag t LEFT JOIN FETCH t.posts")
     List<Tag> findAllWithPostCount();
+
+    List<Tag> findByNameIn(Set<String> names);
 }

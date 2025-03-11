@@ -1,14 +1,13 @@
 package com.anil.blog.controllers;
 
+import com.anil.blog.dtos.CreateTagsRequest;
 import com.anil.blog.dtos.TagDto;
-import com.anil.blog.services.CategoryService;
 import com.anil.blog.services.TagService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -23,5 +22,11 @@ public class TagController {
     public ResponseEntity<List<TagDto>> getAllTags(){
         List<TagDto> tags = tagService.getTags();
         return new ResponseEntity<>(tags, HttpStatus.OK);
+    }
+
+    @PostMapping
+    public ResponseEntity<List<TagDto>> createTags(@Valid @RequestBody CreateTagsRequest createTagsRequest){
+        List<TagDto> tagDto = tagService.createTags(createTagsRequest);
+        return new ResponseEntity<>(tagDto,HttpStatus.CREATED);
     }
 }
