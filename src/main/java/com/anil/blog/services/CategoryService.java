@@ -14,4 +14,6 @@ public interface CategoryService {
 
     void deleteCategory(UUID id);
 
+    CategoryDto getCategoryById(UUID id);
+
 }

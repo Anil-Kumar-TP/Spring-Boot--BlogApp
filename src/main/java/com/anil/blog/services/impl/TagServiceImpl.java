@@ -7,6 +7,7 @@ import com.anil.blog.dtos.TagDto;
 import com.anil.blog.mappers.TagMapper;
 import com.anil.blog.repositories.TagRepository;
 import com.anil.blog.services.TagService;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -66,5 +67,11 @@ public class TagServiceImpl implements TagService {
             }
             tagRepository.deleteById(id);
         }
+    }
+
+    @Override
+    public TagDto getTagById(UUID id) {
+        Tag tag = tagRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("No tag found with this id" + id));
+        return tagMapper.toTagDto(tag);
     }
 }

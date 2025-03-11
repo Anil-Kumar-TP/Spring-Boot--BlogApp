@@ -14,4 +14,6 @@ public interface TagService {
 
     void deleteTag(UUID id);
 
+    TagDto getTagById(UUID id);
+
 }
