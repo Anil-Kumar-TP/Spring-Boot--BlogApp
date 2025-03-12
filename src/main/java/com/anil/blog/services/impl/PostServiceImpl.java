@@ -5,10 +5,12 @@ import com.anil.blog.domain.entities.Post;
 import com.anil.blog.dtos.PostDto;
 import com.anil.blog.mappers.PostMapper;
 import com.anil.blog.repositories.PostRepository;
+import com.anil.blog.security.BlogUserDetails;
 import com.anil.blog.services.CategoryService;
 import com.anil.blog.services.PostService;
 import com.anil.blog.services.TagService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,5 +56,15 @@ public class PostServiceImpl implements PostService {
         return posts.stream()
                 .map(postMapper::toDto)
                 .toList();
+    }
+
+    @Override
+    public List<PostDto> getDraftPostsForCurrentUser() {
+        BlogUserDetails userDetails = (BlogUserDetails) SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getPrincipal();
+        UUID authorId = userDetails.getId();
+        List<Post> draftPosts = postRepository.findByStatusAndAuthorId(PostStatus.DRAFT, authorId);
+        return draftPosts.stream().map(postMapper::toDto).toList();
     }
 }
