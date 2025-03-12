@@ -46,4 +46,17 @@ public class PostController {
         PostDto updatedPost = postService.updatePost(id, updatePostRequest);
         return new ResponseEntity<>(updatedPost, HttpStatus.OK);
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<PostDto> getPost(@PathVariable UUID id) {
+        PostDto post = postService.getPostById(id);
+        return new ResponseEntity<>(post, HttpStatus.OK);
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> deletePost(@PathVariable UUID id) {
+        postService.deletePost(id);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
 }

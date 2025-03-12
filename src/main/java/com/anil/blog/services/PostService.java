@@ -16,4 +16,8 @@ public interface PostService {
     PostDto createPost(CreatePostRequest createPostRequest);
 
     PostDto updatePost(UUID id, UpdatePostRequest updatePostRequest);
+
+    PostDto getPostById(UUID id);
+
+    void deletePost(UUID id);
 }

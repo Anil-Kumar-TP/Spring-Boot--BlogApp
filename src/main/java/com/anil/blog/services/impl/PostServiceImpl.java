@@ -165,4 +165,45 @@ public class PostServiceImpl implements PostService {
         Post updatedPost = postRepository.save(existingPost);
         return postMapper.toDto(updatedPost);
     }
+
+    @Override
+    @Transactional(readOnly = true) // Read-only for better performance
+    public PostDto getPostById(UUID id) {
+        Post post = postRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Post not found with ID: " + id));
+
+        // Optionally, check if the post is published (if drafts shouldn't be visible)
+        if (post.getStatus() != PostStatus.PUBLISHED) {
+            BlogUserDetails userDetails = (BlogUserDetails) SecurityContextHolder.getContext()
+                    .getAuthentication()
+                    .getPrincipal();
+            if (userDetails == null || !post.getAuthor().getId().equals(userDetails.getId())) {
+                throw new SecurityException("Post is not published and you are not the author");
+            }
+        }
+
+        return postMapper.toDto(post);
+    }
+
+    @Override
+    @Transactional
+    public void deletePost(UUID id) {
+        // Get current authenticated user
+        BlogUserDetails userDetails = (BlogUserDetails) SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getPrincipal();
+        UUID currentUserId = userDetails.getId();
+
+        // Fetch existing post
+        Post post = postRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Post not found with ID: " + id));
+
+        // Verify the current user is the author
+        if (!post.getAuthor().getId().equals(currentUserId)) {
+            throw new SecurityException("You can only delete your own posts");
+        }
+
+        // Delete the post
+        postRepository.delete(post);
+    }
 }
