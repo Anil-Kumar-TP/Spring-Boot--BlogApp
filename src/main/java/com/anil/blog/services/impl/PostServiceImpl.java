@@ -1,21 +1,33 @@
 package com.anil.blog.services.impl;
 
 import com.anil.blog.domain.PostStatus;
+import com.anil.blog.domain.entities.Category;
 import com.anil.blog.domain.entities.Post;
+import com.anil.blog.domain.entities.Tag;
+import com.anil.blog.domain.entities.User;
+import com.anil.blog.dtos.CategoryDto;
+import com.anil.blog.dtos.CreatePostRequest;
 import com.anil.blog.dtos.PostDto;
+import com.anil.blog.dtos.TagDto;
+import com.anil.blog.mappers.CategoryMapper;
 import com.anil.blog.mappers.PostMapper;
+import com.anil.blog.mappers.TagMapper;
 import com.anil.blog.repositories.PostRepository;
+import com.anil.blog.repositories.UserRepository;
 import com.anil.blog.security.BlogUserDetails;
 import com.anil.blog.services.CategoryService;
 import com.anil.blog.services.PostService;
 import com.anil.blog.services.TagService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +40,11 @@ public class PostServiceImpl implements PostService {
     private final TagService tagService;
 
     private final PostMapper postMapper;
+
+    private final CategoryMapper categoryMapper;
+
+    private final TagMapper tagMapper;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -64,7 +81,48 @@ public class PostServiceImpl implements PostService {
                 .getAuthentication()
                 .getPrincipal();
         UUID authorId = userDetails.getId();
+        // Ensures only drafts where author_id matches the authenticated user's ID are returned
         List<Post> draftPosts = postRepository.findByStatusAndAuthorId(PostStatus.DRAFT, authorId);
         return draftPosts.stream().map(postMapper::toDto).toList();
+    }
+
+    @Override
+    public PostDto createPost(CreatePostRequest createPostRequest) {
+        BlogUserDetails userDetails = (BlogUserDetails) SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getPrincipal();
+        UUID authorId = userDetails.getId();
+
+        // Fetch the existing User entity
+        User author = userRepository.findById(authorId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with ID: " + authorId));
+
+        CategoryDto categoryDto = categoryService.getCategoryById(createPostRequest.getCategoryId());
+        Category category = categoryMapper.toEntity(categoryDto);
+
+        Set<Tag> tags = createPostRequest.getTagIds().stream()
+                .map(tagId -> {
+                    TagDto tagDto = tagService.getTagById(tagId);
+                    return tagMapper.toEntity(tagDto);
+                })
+                .collect(Collectors.toSet());
+
+        Post post = Post.builder()
+                .title(createPostRequest.getTitle())
+                .content(createPostRequest.getContent())
+                .status(createPostRequest.getStatus())
+                .readingTime(calculateReadingTime(createPostRequest.getContent()))
+                .author(author) // Use the fetched User entity
+                .category(category)
+                .tags(tags)
+                .build();
+
+        Post savedPost = postRepository.save(post);
+        return postMapper.toDto(savedPost);
+    }
+
+    private int calculateReadingTime(String content) {
+        int wordCount = content.split("\\s+").length;
+        return Math.max(1, wordCount / 200);
     }
 }

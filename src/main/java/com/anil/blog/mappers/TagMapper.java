@@ -16,6 +16,11 @@ public interface TagMapper {
     @Mapping(target = "postCount",source = "posts",qualifiedByName = "calculatePostCount")
     TagDto toTagDto(Tag tag);
 
+    @Mapping(target = "id", source = "id")
+    @Mapping(target = "name", source = "name")
+    @Mapping(target = "posts", ignore = true) // Ignore posts as it’s not in TagDto
+    Tag toEntity(TagDto dto); // Added for DTO to entity conversion
+
     @Named("calculatePostCount")
     default Integer calculatePostCount(Set<Post> posts){ //in tag entity it is set.
         if (posts == null){
