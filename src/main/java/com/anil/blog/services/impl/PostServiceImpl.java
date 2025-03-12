@@ -5,10 +5,7 @@ import com.anil.blog.domain.entities.Category;
 import com.anil.blog.domain.entities.Post;
 import com.anil.blog.domain.entities.Tag;
 import com.anil.blog.domain.entities.User;
-import com.anil.blog.dtos.CategoryDto;
-import com.anil.blog.dtos.CreatePostRequest;
-import com.anil.blog.dtos.PostDto;
-import com.anil.blog.dtos.TagDto;
+import com.anil.blog.dtos.*;
 import com.anil.blog.mappers.CategoryMapper;
 import com.anil.blog.mappers.PostMapper;
 import com.anil.blog.mappers.TagMapper;
@@ -124,5 +121,48 @@ public class PostServiceImpl implements PostService {
     private int calculateReadingTime(String content) {
         int wordCount = content.split("\\s+").length;
         return Math.max(1, wordCount / 200);
+    }
+
+    @Override
+    @Transactional
+    public PostDto updatePost(UUID id, UpdatePostRequest updatePostRequest) {
+        // Get current authenticated user
+        BlogUserDetails userDetails = (BlogUserDetails) SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getPrincipal();
+        UUID currentUserId = userDetails.getId();
+
+        // Fetch existing post using the path id
+        Post existingPost = postRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Post not found with ID: " + id));
+
+        // Verify the current user is the author
+        if (!existingPost.getAuthor().getId().equals(currentUserId)) {
+            throw new SecurityException("You can only update your own posts");
+        }
+
+        // Fetch category
+        CategoryDto categoryDto = categoryService.getCategoryById(updatePostRequest.getCategoryId());
+        Category category = categoryMapper.toEntity(categoryDto);
+
+        // Fetch tags
+        Set<Tag> tags = updatePostRequest.getTagIds().stream()
+                .map(tagId -> {
+                    TagDto tagDto = tagService.getTagById(tagId);
+                    return tagMapper.toEntity(tagDto);
+                })
+                .collect(Collectors.toSet());
+
+        // Update post fields
+        existingPost.setTitle(updatePostRequest.getTitle());
+        existingPost.setContent(updatePostRequest.getContent());
+        existingPost.setCategory(category);
+        existingPost.setTags(tags);
+        existingPost.setStatus(updatePostRequest.getPostStatus());
+        existingPost.setReadingTime(calculateReadingTime(updatePostRequest.getContent()));
+
+        // Save updated post
+        Post updatedPost = postRepository.save(existingPost);
+        return postMapper.toDto(updatedPost);
     }
 }

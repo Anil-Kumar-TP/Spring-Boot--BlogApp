@@ -2,6 +2,7 @@ package com.anil.blog.controllers;
 
 import com.anil.blog.dtos.CreatePostRequest;
 import com.anil.blog.dtos.PostDto;
+import com.anil.blog.dtos.UpdatePostRequest;
 import com.anil.blog.services.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,5 +38,12 @@ public class PostController {
     public ResponseEntity<PostDto> createPost(@Valid @RequestBody CreatePostRequest createPostRequest) {
         PostDto createdPost = postService.createPost(createPostRequest);
         return new ResponseEntity<>(createdPost, HttpStatus.CREATED);
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<PostDto> updatePost(@PathVariable UUID id, @Valid @RequestBody UpdatePostRequest updatePostRequest) {
+        PostDto updatedPost = postService.updatePost(id, updatePostRequest);
+        return new ResponseEntity<>(updatedPost, HttpStatus.OK);
     }
 }
